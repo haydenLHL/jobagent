@@ -1,0 +1,18 @@
+# Companies/ATS hosts to skip outright: the autofill link does not land on an
+# application form, so there is nothing to fill.
+# Matched against BOTH the job title (from the queue) and the landing URL.
+joinbytedance
+bytedance
+tiktok
+lifeattiktok
+# Tesla's Akamai WAF returns domain-wide Access Denied after repeated hits and
+# the apply flow never renders a form under automation. gotchas: do not attempt
+# evasion, hard-skip.
+tesla.com
+# Google Careers: applying requires a signed-in Google account; the posting
+# page serves 0 inputs and only nav CTAs. Login wall, not a missing form.
+google.com/about/careers
+# Job-board relays (2026-09-23): a job's applyLink sometimes points at the
+# board, not the employer. Their apply flows need a separate login.
+linkedin.com/jobs
+ziprecruiter.com

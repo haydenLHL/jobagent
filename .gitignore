@@ -1,0 +1,11 @@
+/*
+!/.gitignore
+!/README.md
+!/package*.json
+!/*.mjs
+!/*.cjs
+!/*.sh
+!/bin/
+!/skill/
+!/ats_*.txt
+/_probe_*

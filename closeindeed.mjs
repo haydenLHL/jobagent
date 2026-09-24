@@ -1,0 +1,11 @@
+import { chromium } from 'playwright-core';
+const b=await chromium.connectOverCDP('http://localhost:9222');
+const c=b.contexts()[0];
+const t=c.pages().find(x=>/indeed\.com/.test(x.url()));
+if(t){ await t.close(); console.log('closed indeed login tab'); } else console.log('no indeed tab found');
+await new Promise(r=>setTimeout(r,8000));
+const p=c.pages().find(x=>/jobright\.ai\/agent/.test(x.url()) && !x.isClosed());
+const body=await p.evaluate(()=>document.body.innerText.replace(/\s+/g,' ').slice(0,250)).catch(e=>'ERR:'+e.message);
+console.log('main agent state after close:', body);
+console.log('tabs now:'); c.pages().forEach(x=>console.log('  ',x.url().slice(0,90)));
+await b.close();

@@ -1,0 +1,13 @@
+import { chromium } from 'playwright-core';
+const b=await chromium.connectOverCDP('http://localhost:9222');
+const c=b.contexts()[0]; const p=await c.newPage();
+await p.goto('https://www.tesla.com/careers/search/job/283117?source=Indeed',{waitUntil:'domcontentloaded',timeout:25000});
+await p.waitForTimeout(3000);
+console.log((await p.evaluate(()=>document.body.innerText.slice(0,120))));
+await p.close();
+console.log('--- jobright still ok? ---');
+const p2=await c.newPage();
+await p2.goto('https://jobright.ai/jobs/recommend',{waitUntil:'domcontentloaded',timeout:25000});
+await p2.waitForTimeout(3000);
+console.log((await p2.evaluate(()=>document.title)));
+await p2.close(); await b.close();

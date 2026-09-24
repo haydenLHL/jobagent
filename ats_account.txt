@@ -1,0 +1,15 @@
+# Boards that require an account before any application form renders.
+# Out of scope by the same rule as Workday: no form, nothing to fill.
+amazon.jobs
+linkedin.com
+indeed.com
+ziprecruiter.com
+glassdoor.com
+eightfold.ai
+apply.careers.microsoft.com
+# iCIMS: the job page's "Click here to apply" lands on <host>/jobs/<id>/login -
+# "Enter Your Information / Email" plus an hCaptcha, then an emailed six-digit
+# code (that is where the old "Enter verification code digit 1 of six" gaps came
+# from). Verified live on careers-daytonfreight.icims.com 2026-09-18. Required
+# login => out of scope by user policy.
+icims.com

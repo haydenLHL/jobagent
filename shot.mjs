@@ -1,0 +1,10 @@
+import { chromium } from 'playwright-core';
+const b=await chromium.connectOverCDP('http://localhost:9222');
+const c=b.contexts()[0];
+const p=c.pages().find(x=>/jobright\.ai\/agent/.test(x.url()));
+await p.bringToFront();
+await p.waitForTimeout(1500);
+await p.screenshot({path:'' + process.env.HOME + '/.jobagent/agent.png', fullPage:false});
+console.log('saved agent.png');
+console.log('viewport:', JSON.stringify(p.viewportSize()));
+await b.close();

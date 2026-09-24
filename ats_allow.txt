@@ -1,0 +1,4 @@
+# ATS hosts proven fillable by hand even though a captcha is present.
+# Captcha detection is skipped for these. Add only after verifying:
+#   no password field, form inputs present, a submit button exists.
+jobs.lever.co

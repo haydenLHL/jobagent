@@ -1,0 +1,22 @@
+import { chromium } from 'playwright-core';
+const b=await chromium.connectOverCDP('http://localhost:9222');
+const c=b.contexts()[0]; const p=await c.newPage();
+await p.goto('https://jobright.ai/jobs/recommend',{waitUntil:'domcontentloaded',timeout:30000});
+await p.waitForTimeout(5000);
+await p.evaluate(()=>{const t=document.getElementById('___reactour');if(t)t.remove();});
+const link=await p.evaluate(()=>{let h='';document.querySelectorAll('a').forEach(a=>{if(/Applied/i.test(a.innerText||'')&&!h)h=a.getAttribute('href')||'';});return h;});
+console.log('applied link:', link);
+await p.goto(new URL(link||'/jobs/applied','https://jobright.ai').href,{waitUntil:'domcontentloaded',timeout:30000}).catch(()=>{});
+await p.waitForTimeout(6000);
+await p.evaluate(()=>{const t=document.getElementById('___reactour');if(t)t.remove();});
+console.log('url:', p.url().slice(0,80));
+const r=await p.evaluate(()=>{
+  const txt=(document.body.innerText||'').replace(/\s+/g,' ');
+  const names=['Lyft','Veeam','NewsBreak','Epic Games','Nearby AI'];
+  const hits={}; names.forEach(n=>hits[n]=txt.includes(n));
+  return {hits, count:(txt.match(/Applied\s+(\d+)/)||[])[1], head:txt.slice(0,300)};
+});
+console.log('applied total:', r.count);
+console.log('present in applied list:', JSON.stringify(r.hits));
+console.log('head:', r.head);
+await p.close(); await b.close();
