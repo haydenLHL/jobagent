@@ -46,6 +46,8 @@ $cands = @(
   "$env:LOCALAPPDATA\Programs\claude\claude.exe",
   "$env:LOCALAPPDATA\AnthropicClaude\claude.exe",
   (Get-Command claude.exe -ErrorAction SilentlyContinue).Source,
+  # npm package: newer versions download a native claude.exe during install
+  (Get-ChildItem "$env:APPDATA\npm\node_modules\@anthropic-ai\claude-code" -Recurse -Filter claude.exe -ErrorAction SilentlyContinue | Select-Object -First 1).FullName,
   $npmCli
 ) | Where-Object { $_ -and (Test-Path $_) }
 if ($cands) { $env:CLAUDE_BIN = @($cands)[0]; Write-Host "Using Claude Code at $env:CLAUDE_BIN" }
