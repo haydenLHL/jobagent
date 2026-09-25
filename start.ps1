@@ -20,13 +20,17 @@ if (-not (Test-Path node_modules)) { Step 'Installing packages'; npm install --s
 Step 'Checking your files'
 $dl = Join-Path $env:USERPROFILE 'Downloads'
 if (-not (Test-Path answers.json) -and (Test-Path "$dl\answers.json")) { Copy-Item "$dl\answers.json" . ; Write-Host 'Copied answers.json from Downloads' }
-if (-not (Test-Path resume.pdf)) {
-  $r = Get-ChildItem $dl -Filter '*Resume*.pdf' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-  if ($r) { Copy-Item $r.FullName resume.pdf; Write-Host "Copied $($r.Name) as resume.pdf" }
-}
 if (-not (Test-Path answers.json)) { Stop-With "answers.json is missing. Put it in $PSScriptRoot or your Downloads folder." }
-if (-not (Test-Path resume.pdf)) { Stop-With "resume.pdf is missing. Put your resume PDF in $PSScriptRoot and name it resume.pdf." }
-try { Get-Content answers.json -Raw | ConvertFrom-Json | Out-Null } catch { Stop-With "answers.json has a typo (usually a missing comma or quote): $($_.Exception.Message)" }
+try { $me = Get-Content answers.json -Raw -Encoding UTF8 | ConvertFrom-Json } catch { Stop-With "answers.json has a typo (usually a missing comma or quote): $($_.Exception.Message)" }
+if (-not (Test-Path resume.pdf)) {
+  # Only a PDF with YOUR last name in the file name - never someone else's resume.
+  $r = Get-ChildItem $dl -Filter "*$($me.last_name)*.pdf" -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'resume|cv' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  if (-not $r) { Stop-With "resume.pdf is missing. Copy your resume PDF into $PSScriptRoot and rename it resume.pdf." }
+  Write-Host "Found $($r.Name) in Downloads." -ForegroundColor Yellow
+  if ((Read-Host 'Use this as your resume? (y/n)') -ne 'y') { Stop-With "Copy your resume PDF into $PSScriptRoot and rename it resume.pdf, then run again." }
+  Copy-Item $r.FullName resume.pdf
+}
+Write-Host "Applying as $($me.first_name) $($me.last_name) with resume.pdf in $PSScriptRoot"
 
 Step 'Checking Claude Code (answers unusual form questions)'
 $claude = Get-Command claude -ErrorAction SilentlyContinue
