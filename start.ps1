@@ -83,7 +83,7 @@ Step 'Building the list of jobs to apply to on company websites'
 node build_offsite.mjs
 $env:QUEUE_FILE = 'offsite_batch.json'
 if ($Submit) { Remove-Item Env:LIMIT -ErrorAction SilentlyContinue; Step 'Company websites - SUBMITTING for real (this can take hours; leave Opera alone)' }
-else { $env:LIMIT = '5'; Step 'Company websites - practice on 5 jobs, NOT submitting (leave Opera alone)' }
+else { $env:LIMIT = '20'; Step 'Company websites - practice on 20 jobs, NOT submitting (leave Opera alone)' }
 node offsite3.mjs 2>&1 | Tee-Object -FilePath offsite3.log
 Step "Done. Logs saved to apply3.log and offsite3.log"
 Read-Host 'Press Enter to close'
