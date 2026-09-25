@@ -9,3 +9,5 @@
 !/skill/
 !/ats_*.txt
 /_probe_*
+!/*.ps1
+!/*.cmd
