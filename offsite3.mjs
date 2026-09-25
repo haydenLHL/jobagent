@@ -250,8 +250,9 @@ const EEO = /gender|race|ethnicity|hispanic|latino|veteran|disabilit|self-?ident
 // already records terms_consent: yes - it was gapping only because none of
 // these keywords covered it.
 const YES = /permission to (text|contact)|text (you|messages)|\bsms\b|relocat|on-?site|in[- ]office|in[- ]person|i understand|willing|able to|commute|hybrid|travel|18 years|older|agree|consent|acknowledg|confirm|terms|privacy|background check|reference check|identity[- ]verification|drug (test|screen)|comfortable with|pays \$|hourly rate|be considered for other|proficient/i;
-const NO = /applied .{0,25}with us before|previously applied|convict|criminal|felony|misdemeanor|non-?compete|restrictive covenant|relative|family member|related to (an?|any) (\w+ ){0,3}employee|previously (work|employ)|currently employed by|own, operate|other business|outside (employment|business)|conflict of interest|any offers|outstanding offers|offer deadlines|deadlines? (we should|to accept)|other firms|career fair|sponsors for educational opportunity/i;
-const DECLINE = /decline|choose not|prefer not|do not wish|don'?t wish|not disclose|not to self/i;
+const NO = /referred (to [\w&.'-]+ )?by (an? )?(existing|current) employee|were you referred|applied .{0,25}with us before|previously applied|convict|criminal|felony|misdemeanor|non-?compete|restrictive covenant|relative|family member|related to (an?|any) (\w+ ){0,3}employee|previously (work|employ)|currently employed by|own, operate|other business|outside (employment|business)|conflict of interest|any offers|outstanding offers|offer deadlines|deadlines? (we should|to accept)|other firms|career fair|sponsors for educational opportunity/i;
+const DECLINE = /decline|choose not|prefer not|do not wish|don'?t wish|do not want to (answer|disclose|say)|don'?t want to (answer|disclose|say)|not disclose|not to self/i;
+const DEMO = /^(male|female|man|woman|non[- ]?binary|white|asian|black|hispanic|latin[oax]|native|american indian|two or more)\b|veteran|disabilit/i;
 // Answers the LLM resolved for the CURRENT form. Consulted before every rule:
 // it has the full question text and the real option list, which the regexes
 // below do not. Keyed by normalized question text.
@@ -321,6 +322,22 @@ function infer0(q, opts) {
     const qk = nkey(q);
     const same = qk && !/^(please )?select|^choose (one|an option)$|^none selected$/.test(qk) ? opts.find(o => nkey(o) === qk) : null;
     if (same) return same;
+  }
+  // "Source" / "How did you hear" pickers: LinkedIn is the answer learned.json
+  // already gives; a Phenom parent "Source Type" has no LinkedIn, only
+  // categories - JobRight is a website, so "Website" (which unlocks the
+  // child list that does contain LinkedIn).
+  if (/\bsource\b|hear about/i.test(q) && opts.length) {
+    const li = opts.find(o => /^linked ?in\b/i.test(o.trim())); if (li) return li;
+    const web = opts.find(o => /^(website|job board|internet|online( job board)?|job posting site)$/i.test(o.trim())); if (web) return web;
+  }
+  // A contact-CHANNEL picker (Cisco/Phenom "Send SMS / Send Emails / Send
+  // WhatsApp") left Next disabled; its question label is unreliable (it read
+  // as the Country field above it). Email is the channel on every form we
+  // submit, so answer it from the options alone.
+  if (opts.length >= 2 && opts.every(o => /\b(sms|e-?mails?|whatsapp|text( message)?s?|phone|call)\b/i.test(o))) {
+    const em = opts.find(o => /e-?mail/i.test(o));
+    if (em) return em;
   }
   const llm = llmGet((q));
   if (llm) { const m = fuzzyOpt(opts, llm); if (m) return m; if (!opts.length) return llm; }
@@ -449,6 +466,11 @@ function infer0(q, opts) {
   if (WORK_AUTH.test(q)) return find(/^no/i) || null;
   if (EXPORT.test(q)) return find(/^other/i) || null;   // Canadian citizen: not USC/LPR/protected
   if (EEO.test(q)) return find(DECLINE) || null;
+  // Ashby renders EEO radio groups with no reachable label (q === ''), so the
+  // EEO test above never fires and gender/race gapped on ~25 jobs. When the
+  // OPTIONS are themselves demographic and one is a decline, apply the same
+  // decline policy answers.json sets for every EEO field.
+  if (opts.some(o => DECLINE.test(o)) && opts.filter(o => DEMO.test(o)).length >= 2) return find(DECLINE);
   // The bank already knows city/state/country/school/degree/major/etc. infer()
   // never consulted it, so every one of those rendered as a <select> or a
   // radio group gapped even though the answer was sitting right there
@@ -537,9 +559,22 @@ const scan = pg => pg.evaluate(lbl => {
   const capFrame = ifr.find(f => /recaptcha.*api2\/anchor|recaptcha.*bframe|hcaptcha.*(checkbox|challenge)/i.test(f.src || '') && big(f));
   if (capFrame) capWhy = 'iframe ' + String(capFrame.src).slice(0, 80) + ' ' + capFrame.offsetWidth + 'x' + capFrame.offsetHeight;
   if (!capWhy) {
-    const capEl = [...document.querySelectorAll('.g-recaptcha,[data-sitekey],.cf-turnstile')].find(big);
+    // A .g-recaptcha class ON a button is invisible reCAPTCHA bound to the
+    // submit click (ADP <sdf-button class="g-recaptcha">, 100x40), not a
+    // widget anyone has to solve - 3 ADP jobs were skipped on it (09-25).
+    // Cloudflare Turnstile in managed mode usually passes by itself: the
+    // response token is already set and there is no visible challenge iframe.
+    // Citadel was skipped on a 1088x148 wrapper holding a solved token (09-25).
+    const tsPassed = e => e.classList.contains('cf-turnstile') && (!!e.querySelector('input[name="cf-turnstile-response"]')?.value || ![...e.querySelectorAll('iframe')].some(big));
+    const btnLike = e => /^(button|input|a|sdf-button|oc-button|spl-button|ukg-button|adp-button)$/i.test(e.tagName) || e.getAttribute('role') === 'button' || e.getAttribute('data-size') === 'invisible';
+    const capEl = [...document.querySelectorAll('.g-recaptcha,[data-sitekey],.cf-turnstile')].find(e => big(e) && !btnLike(e) && !tsPassed(e));
     if (capEl) capWhy = 'el ' + capEl.tagName.toLowerCase() + '.' + String(capEl.className).slice(0, 40) + ' ' + capEl.offsetWidth + 'x' + capEl.offsetHeight;
   }
+  // Full-page bot wall (SmartRecruiters/DataDome "Verification Required ...
+  // Slide right to secure your access"). No form underneath; it was being
+  // filed no-submit-btn / adv-stuck0 (CRB, Veolia, 2026-09-25). A human
+  // challenge: skip, never solve.
+  if (!capWhy && /verification required/i.test(document.body?.innerText || '') && /slide right|unusual activity|automated \(bot\) activity/i.test(document.body?.innerText || '')) capWhy = 'bot-wall verification-required';
   const captcha = !!capWhy;
   let filled = 0, total = 0; const req = [];
   // Collect across shadow boundaries. Capped: a web-component ATS can carry
@@ -832,7 +867,12 @@ async function fillSelects(pg) {
     // an internal token ("REC_Print Advertisement") that never matches a label.
     // Bare "Source*" (Toyota/Phenom) is the same question under another name.
     const isSource = /how did you (hear|find out) about/i.test(m.l || '') || /^\W*(applicant |candidate |job |recruitment )?source\b/i.test(m.l || '');
-    const srcWant = isSource ? fuzzyOpt(opts.map(o => String(o).trim()).filter(Boolean), 'LinkedIn') : null;
+    // Only a REAL LinkedIn option. A Phenom parent "How did you hear" list
+    // has none, fuzzyOpt settled on some other category, and this override
+    // flipped our "Website" away on the next pass - so the dependent Source
+    // list never loaded (Excellus/Univera/MITRE, verified live 2026-09-25).
+    const srcFz = isSource ? fuzzyOpt(opts.map(o => String(o).trim()).filter(Boolean), 'LinkedIn') : null;
+    const srcWant = srcFz && /linked ?in/i.test(srcFz) ? srcFz : null;
     const sourceWrong = !!srcWant && !!m.v && String(m.sl || '').trim().toLowerCase() !== srcWant.trim().toLowerCase();
     if (sourceWrong) { await sel.selectOption({ label: srcWant }).catch(() => {}); continue; }
     if (m.v && !countryWrong) continue;
@@ -936,7 +976,14 @@ async function fillRadios(pg) {
     for (const [name, opts] of Object.entries(byName)) {
       if (opts.some(o => o.checked)) continue;
       const first = document.querySelector(`input[data-ja-grp="${name}"]`);
-      const q = first ? QUP(first, opts.map(o => o.label)) : '';
+      let q = first ? QUP(first, opts.map(o => o.label)) : '';
+      // No visible question text at all: fall back to a descriptive input name.
+      // Paycom's SMS opt-in is two bare "Yes"/"No" radios whose only clue is
+      // name="candidate-primary-phone-message-opt-in-field" (23 empty-label
+      // Yes/No gaps across Paycom/Ashby/Lever, 2026-09-25). UUID-ish names
+      // carry nothing and are ignored.
+      if (!q.trim() && first?.name && /[a-z]{3,}[-_][a-z]{3,}/i.test(first.name) && !/^[0-9a-f-]{20,}$/i.test(first.name))
+        q = first.name.replace(/[-_]+/g, ' ').replace(/\b(field|input|radio|candidate)\b/gi, '');
       out.push({ name, q: q.replace(/\s+/g, ' ').trim().slice(0, 250), opts });
     }
     return out;
@@ -1097,11 +1144,19 @@ async function fillCheckboxGroups(pg) {
 }
 async function fillCheckboxes(pg) {
   const unresolved = [];
-  for (const el of await pg.locator('input[type=checkbox]:visible:not([data-ja-group])').all()) {
+  // Not :visible - Ashby's "I Acknowledge" box (age-redaction notice) is a
+  // hidden input under a styled span, so :visible skipped it and the form was
+  // refused "Missing entry for required field" (Snowflake, 2026-09-25). Keep a
+  // hidden input only when its own <label for=id> is visible; Ashby's Yes/No
+  // widgets carry id-less hidden checkboxes and stay with fillYesNo().
+  for (const el of await pg.locator('input[type=checkbox]:not([data-ja-group])').all()) {
     const m = await el.evaluate((e, lbl) => { eval(lbl);
-      return { checked: e.checked, required: !!(e.required || e.getAttribute('aria-required') === 'true'), label: LBL(e) };
+      const shown = x => { if (!x) return false; const r = x.getBoundingClientRect(), cs = getComputedStyle(x); return r.width > 2 && r.height > 2 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
+      const forLbl = e.id ? document.querySelector(`label[for="${CSS.escape(e.id)}"]`) : null;
+      const vis = shown(e) ? 'input' : shown(forLbl) ? 'label' : null;
+      return { vis, checked: e.checked, required: !!(e.required || e.getAttribute('aria-required') === 'true'), label: LBL(e) };
     }, LBL_SRC).catch(() => null);
-    if (!m || m.checked || !m.label) continue;
+    if (!m || !m.vis || m.checked || !m.label) continue;
     if (/cookie/i.test(m.label)) continue;      // cookie-consent widgets, not the application
     const choice = infer(m.label, ['Yes', 'No']);
     if (choice === 'Yes') {
@@ -1111,7 +1166,11 @@ async function fillCheckboxes(pg) {
       // force. Confirmed live on WEX's own consent checkbox - passed on one
       // visit, silently failed on a later one with no code change. Fall
       // through to clicking the label, then a trusted click on the input.
-      let done = await el.check({ timeout: 2500, force: true }).then(() => true).catch(() => false);
+      // A hidden input only takes a click through its visible label (React state).
+      let done = m.vis === 'label'
+        ? await pg.locator(`label[for="${(await el.getAttribute('id')).replace(/"/g, '\\"')}"]`).first().click({ timeout: 2500 }).then(() => el.isChecked()).catch(() => false)
+        : false;
+      if (!done) done = await el.check({ timeout: 2500, force: true }).then(() => true).catch(() => false);
       if (!done) done = await el.locator('xpath=ancestor::label[1]').click({ timeout: 2500, force: true })
         .then(() => true).catch(() => false);
       if (!done) done = await el.click({ timeout: 2500, force: true }).then(() => true).catch(() => false);
@@ -1217,11 +1276,21 @@ async function fillComboboxes(pg) {
       let l = (QUP(e, []) || LBL(e) || '').slice(0, 220);
       if (!l || /^[-\u2014\s]+$/.test(l) || l.length < 12 || l === shown
           || /^(select|choose|please select|search|start typing|type to search)/i.test(l)) {
-        let n = e.parentElement, h = 0;
-        while (n && h++ < 6) {
-          const t = (n.innerText || '').replace(/\s+/g, ' ').trim();
-          if (t.length >= 15 && !/^[-\u2014\s]+$/.test(t)) { l = t.slice(0, 220); break; }
-          n = n.parentElement;
+        // The field's own wrapper label first (Ashby data-field-entry-id,
+        // fieldset legend). The blind climb below reached the whole FORM on
+        // Ashby - "Full Name Email ... Resume ..." - and a majors list with
+        // "Computer Science" in it gapped (Snowflake, 2026-09-25).
+        const wrap = e.closest('[data-field-entry-id], [data-field-path], fieldset');
+        const wl = (wrap?.querySelector('label, legend')?.innerText || '').replace(/\s+/g, ' ').trim();
+        if (wl.length >= 3 && wl !== shown) l = wl.slice(0, 220);
+        else {
+          let n = e.parentElement, h = 0;
+          while (n && h++ < 6) {
+            const t = (n.innerText || '').replace(/\s+/g, ' ').trim();
+            if (t.length > 400) break;   // climbed past the field into the form
+            if (t.length >= 15 && !/^[-\u2014\s]+$/.test(t)) { l = t.slice(0, 220); break; }
+            n = n.parentElement;
+          }
         }
       }
       return { empty, l, shown: shown.slice(0, 60) };
@@ -1387,6 +1456,12 @@ async function fillFiles(pg) {
     // that fix and uploaded the RESUME as Interplay's "Please take this test and
     // upload a screenshot" (2026-09-24). Allowlist: transcript -> transcript,
     // resume/CV or an unlabeled input (Ashby's main one) -> resume, else gap.
+    // Ashby's "Autofill from resume" box is an optional parse helper, not the
+    // Resume field. Uploading to it triggers an async re-parse that resets the
+    // real Resume field after we have already judged it filled - 7 records
+    // died "Missing entry for required field: Resume" with only this box in
+    // their file log (2026-09-25). Never feed it.
+    if (/^autofill from r[eé]sum[eé]/i.test(lab)) { FILE_LOG.push({ lab: lab.slice(0, 40), skipped: 'autofill-helper' }); continue; }
     const isTranscript = /transcript|academic record/i.test(lab);
     const isResume = !lab.trim() || /r[e\u00e9]sum[e\u00e9]|\bcv\b|curriculum vitae/i.test(lab);
     if (!isTranscript && !isResume) { FILE_LOG.push({ lab: lab.slice(0, 40), skipped: 'not-a-doc-we-have' }); continue; }
@@ -1511,7 +1586,22 @@ async function fillAll(pg) {
   await dismissBanners(pg); lap('banners');
   await expandRepeaters(pg); lap('repeat');
   await fillText(pg); lap('text1');
-  const a = await fillSelects(pg); lap('selects');
+  let a = await fillSelects(pg); lap('selects');
+  // Dependent selects (Phenom "Source Type" -> "Source") only get options
+  // after the parent is chosen; one pass saw a placeholder-only list and
+  // gapped it (Univera, MITRE, 2026-09-25). If anything is still open, give
+  // the cascade a moment and answer again - filled selects are skipped.
+  if (a.length) {
+    // Excellus: parent answered "Website", child still placeholder-only on the
+    // second pass. Re-fire change on every answered select so a framework that
+    // missed the first event loads the child list, then give it time.
+    await pg.evaluate(() => document.querySelectorAll('select').forEach(s => { if (s.selectedIndex > 0) { s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true })); } })).catch(() => {});
+    // Poll instead of a fixed wait: the dependent list loaded inside 3s on one
+    // Excellus run and not on two later ones (09-25).
+    const emptyReq = () => pg.evaluate(() => [...document.querySelectorAll('select')].some(s => (s.required || s.getAttribute('aria-required') === 'true') && s.offsetParent && [...s.options].every(o => /^(please|select|choose|--|\s*$)/i.test(o.text.trim())))).catch(() => false);
+    for (let k = 0; k < 10 && await emptyReq(); k++) await pg.waitForTimeout(1000);
+    a = await fillSelects(pg); lap('selects2');
+  }
   const r = await fillRadios(pg); lap('radios');
   // Groups MUST run before singles: it tags its own options with
   // data-ja-group so fillCheckboxes() skips them instead of asking a
@@ -1570,6 +1660,20 @@ async function repairFromErrors(pg) {
   if (!named.length) return { fixed: 0, named: [] };
   let fixed = 0;
   for (const name of named.slice(0, 6)) {
+    // A named DOCUMENT field ("Missing entry for required field: Resume"):
+    // the text path below skips file inputs, so re-attach the file directly.
+    const doc = /transcript|academic record/i.test(name) ? 'transcript.pdf' : /r[eé]sum[eé]|\bcv\b/i.test(name) ? 'resume.pdf' : null;
+    if (doc) {
+      for (const f of await pg.locator('input[type=file]').all().catch(() => [])) {
+        const lab = await f.evaluate(e => { let t = '', p = e.parentElement, h = 0; while (p && h++ < 4 && !t) { const s = (p.innerText || '').trim(); if (s.length > 3 && s.length < 200) t = s; p = p.parentElement; } return t; }).catch(() => '');
+        if (/^autofill from/i.test(lab) || !new RegExp(doc === 'resume.pdf' ? 'r[eé]sum[eé]|\\bcv\\b' : 'transcript|academic', 'i').test(lab)) continue;
+        const err = await f.setInputFiles(`${HOME}/.jobagent/${doc}`, { timeout: 12000 }).then(() => null).catch(e => String(e.message).slice(0, 60));
+        FILE_LOG.push({ lab: `repair:${lab.slice(0, 30)}`, err });
+        if (!err) { fixed++; await pg.waitForTimeout(2500); }
+        break;
+      }
+      continue;
+    }
     // Resolve the value the same three ways the fill path does, INCLUDING
     // learned.json, which repairRequired never consulted.
     const learned = Object.entries(LEARNED).find(([k]) => name.toLowerCase().includes(k.toLowerCase()));
@@ -1618,6 +1722,14 @@ async function repairFromErrors(pg) {
     }
   }
   if (process.env.DEBUG_REPAIR) console.error("[err-repair]", JSON.stringify({ named, fixed }));
+  // Yes/No button groups are skipped above. Ashby dropped an already-pressed
+  // answer ("could you confirm you are currently authorized to work") and
+  // refused the form (Snowflake, 2026-09-25). fillYesNo() only touches groups
+  // with nothing pressed and answers them by the same infer() policy.
+  const pressedCount = () => pg.evaluate(() => document.querySelectorAll('[data-field-entry-id] button[aria-pressed="true"]').length).catch(() => 0);
+  const p0 = await pressedCount();
+  await fillYesNo(pg).catch(() => []);
+  fixed += Math.max(0, (await pressedCount()) - p0);
   return { fixed, named };
 }
 
@@ -1705,8 +1817,43 @@ async function pruneIncompleteRows(pg) {
   return removed;
 }
 
+// JobRight extension "Autofill" button. It used to be clicked exactly once, by
+// an instant count() on the LANDING page: the extension injects the button a
+// few seconds after load, and the reveal step often moves to a new tab/page
+// (Apply click, iframe, direct ATS href) where it was never clicked at all -
+// the user watched it sit unclicked with every field empty (2026-09-25).
+// Poll for it, click it once per distinct page, wait for fills to settle.
+const EXT_AF_DONE = new Set();
+async function extAutofill(pg) {
+  const key = (() => { try { return pg.url().split('#')[0]; } catch { return ''; } })();
+  if (!key || EXT_AF_DONE.has(key)) return 0;
+  const af = pg.locator('button', { hasText: /^\s*Autofill\s*$/ });
+  let n = 0;
+  for (let k = 0; k < 10 && !(n = await af.count().catch(() => 0)); k++) await pg.waitForTimeout(800);
+  if (!n) { AF_LOG.push({ page: key.slice(0, 60), found: 0 }); return 0; }
+  EXT_AF_DONE.add(key);
+  const before = (await scan(pg).catch(() => null))?.filled ?? null;
+  const vis = af.filter({ visible: true });
+  const target = await vis.count().catch(() => 0) ? vis.first() : af.first();
+  const err = await target.click({ timeout: 8000 }).then(() => null).catch(e => String(e.message).slice(0, 60));
+  // Live probe: 0 fields at +4s, 3 at +8s, 9 by +16s. Stopping at the first
+  // unchanged reading quit before it started. Wait for growth (up to 14s),
+  // then until two readings in a row show no more.
+  const t0 = Date.now(); let now = before ?? 0, last = now, grew = false, stable = 0;
+  while (Date.now() - t0 < 30000) {
+    await pg.waitForTimeout(2500);
+    now = (await scan(pg).catch(() => null))?.filled ?? now;
+    if (now > last) { grew = true; stable = 0; last = now; }
+    else if (grew ? ++stable >= 2 : Date.now() - t0 > 22000) break;
+  }
+  AF_LOG.push({ page: key.slice(0, 60), found: n, err, before, after: now });
+  return 1;
+}
+let AF_LOG = [];
+
 async function fillCycle(tab) {
   let unresolved = [];
+  await extAutofill(tab);
   for (let step = 0; step < 8; step++) {
     if (step > 0) extendDeadline();   // reached a new step = real progress
     phase('fill'); unresolved = await fillAll(tab);
@@ -1846,7 +1993,7 @@ for (const j of queue) {
   LLM_ANS.clear();          // answers are per-form; never leak across jobs
   CUR_JOB = j;
   ANS_LOG = [];
-  FILE_LOG = [];
+  FILE_LOG = []; AF_LOG = []; EXT_AF_DONE.clear();
   // Reap tabs left by THIS worker's earlier jobs. A timed-out job's async
   // body keeps running after withTimeout rejects, so it can open tabs after
   // cleanup ran; 26 leaked tabs accumulated in 20 minutes and wedged CDP
@@ -1996,12 +2143,7 @@ for (const j of queue) {
       // against whatever page we actually land on - not this initial landing page.
 
       // extension Autofill lives in an open shadow root; trusted click required
-      const af = tab.locator('button', { hasText: /^Autofill$/ }).first();
-      if (await af.count().catch(() => 0)) {
-        await af.click({ timeout: 8000 }).catch(() => {});
-        let prev = -1;
-        for (let k = 0; k < 5; k++) { await tab.waitForTimeout(3200); const t2 = await scan(tab); if (!t2 || t2.filled === prev) break; prev = t2.filled; }
-      }
+      await extAutofill(tab);
       // reveal a form hidden behind an Apply button (may open yet another tab)
       s = await scan(tab);
       // Eightfold/careers-portal pages land on a job SEARCH view whose facet
@@ -2029,6 +2171,27 @@ for (const j of queue) {
         // unchanged baseline, causing every LATER (correct) selector to never be
         // tried. Require genuine growth past the pre-reveal baseline, captured
         // once, not the click's own possibly-untouched total.
+        // A company career page (Phenom: careers.snowflake.com) can carry its
+        // own 5-field "talent community" form AND an APPLY NOW <a> whose href is
+        // the real ATS on another host. The click path below judged the landing
+        // form and refused it 1/5 (2026-09-25). When such a link exists, just go
+        // there - the href says exactly where the application lives.
+        const atsHref = await tab.evaluate(() => {
+          const ATS = /(ashbyhq\.com|lever\.co|greenhouse\.io|smartrecruiters\.com|myworkdayjobs\.com|icims\.com|jobvite\.com|workable\.com|rippling\.com|bamboohr\.com|breezy\.hr|recruitee\.com|teamtailor\.com|paylocity\.com|dayforcehcm\.com)/i;
+          const a = [...document.querySelectorAll('a[href]')].find(e => /^https?:/i.test(e.href) && /apply/i.test(e.innerText || '') && ATS.test(e.href) && new URL(e.href).host !== location.host);
+          return a ? a.href : null;
+        }).catch(() => null);
+        if (atsHref) {
+          rec.atsHref = atsHref.slice(0, 120);
+          if (/myworkdayjobs\.com|workday\.com/i.test(atsHref)) { rec.status = 'skip-workday'; return; }
+          // Ashby job pages hold the form at /application; land on it directly.
+          const dest = atsHref.replace(/^(https:\/\/jobs\.ashbyhq\.com\/[^/?#]+\/[0-9a-f-]{36})(?!\/application)/i, "$1/application");
+          await tab.goto(dest, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
+          await tab.waitForTimeout(4000);
+          // Ashby/Lever job pages put the form behind an "Apply" tab; the
+          // selector loop below handles that from the new baseline.
+          s = await scan(tab) || s;
+        }
         const baseTotal = s?.total || 0;
         const revealed = st => st && st.total >= 5 && st.total > baseTotal;
         // Order matters: the most specific, least ambiguous labels first. A bare
@@ -2328,6 +2491,7 @@ for (const j of queue) {
       if (fin && fin.filled >= 3) extendDeadline();
       rec.filled = fin?.filled; rec.total = fin?.total;
       if (FILE_LOG.length) rec.files = FILE_LOG.slice(0, 4);
+      if (AF_LOG.length) rec.extAF = AF_LOG.slice(0, 3);
       if (unresolved.length || (fin && fin.req.length)) {
         const list = unresolved.length ? unresolved : fin.req.slice(0, 3).map(q => ({ q, options: [], required: true }));
         rec.unresolved = list.slice(0, 4);
@@ -2370,6 +2534,14 @@ for (const j of queue) {
           rec.filled = fin?.filled; rec.total = fin?.total;   // keep the record honest after a late render
         }
         if (!fin || fin.filled < 3 || fin.total < 3) {
+          // A sparse page that is really a sign-in wall (BCG careerhub ->
+          // /candidate/login, 2026-09-25: "Email / Continue / Create an account").
+          // Policy says skip-login; judge it from the URL the reveal landed on.
+          // The reveal click usually opens the wall in a NEW tab that never
+          // became `tab`, so check every page this job opened.
+          const LOGIN_RE = /\/(candidate\/)?(login|signin|sign-in|sign_in|register|signup)\b/i;
+          const lu = [tab, ...OWN].map(pg => { try { return (pg.url ? pg.url() : '') || ''; } catch { return ''; } }).find(u => LOGIN_RE.test(u)) || '';
+          if (lu) { rec.status = 'skip-login'; rec.loginUrl = lu.slice(0, 100); return; }
           rec.status = 'too-sparse-refused';
           rec.sparse = { total: fin?.total ?? null, filled: fin?.filled ?? null, grew };
           return;
@@ -2402,7 +2574,7 @@ for (const j of queue) {
       // Playwright has no tag-glob, and a blind [class*=button] would match
       // decorative wrappers (see the "interested" hijack above).
       const CE_BTN = 'oc-button, spl-button, sdf-button, ukg-button, adp-button';
-      const NAV_NOT_SUBMIT = /^(next|continue|continue to application|continue application|save\s*(and|&)\s*continue|back|previous|search\s*jobs?|search)$/i;
+      const NAV_NOT_SUBMIT = /^(next|next step|next page|save\s*(and|&)\s*next|continue|continue to application|continue application|save\s*(and|&)\s*continue|back|previous|search\s*jobs?|search)$/i;
       // "Apply With Indeed" / "Apply with LinkedIn" match /apply/ and were being
       // picked as the submit button, which hands the candidate off to a third
       // party instead of submitting the form. Never a submit control.
@@ -2427,7 +2599,13 @@ for (const j of queue) {
           if (!NAV_NOT_SUBMIT.test(tt) && !EXTERNAL_APPLY.test(tt) && !DEGRADED_APPLY.test(tt)) return el;
         }
         el = tab.locator('button[type=submit]:visible, input[type=submit]:visible').last();
-        if (await el.count().catch(() => 0)) return el;
+        // Phenom's wizard "Next Step" (id=next) IS type=submit; returning it
+        // here filed step 1 as a finished submit (Cencora, 2026-09-25) and the
+        // wizard walk never ran. A nav label is never the final submit.
+        if (await el.count().catch(() => 0)) {
+          const t2 = ((await el.innerText().catch(() => '')) || (await el.getAttribute('value').catch(() => '')) || '').replace(/\s+/g, ' ').trim();
+          if (!NAV_NOT_SUBMIT.test(t2)) return el;
+        }
         // Custom-element submit, e.g. <oc-button type="primary">Submit</oc-button>
         el = tab.locator(CE_BTN.split(', ').map(t => t + ':visible').join(', '))
           .filter({ hasText: /submit|send application|finish/i })
@@ -2537,7 +2715,7 @@ for (const j of queue) {
       // LeverAppId is Lever's own post-submit token and /thanks is its
       // confirmation path; neither contains the words the text regex looks for.
       const CONFIRM_URL_RE = /confirm|thank|success|complete|submitted|applied|LeverAppId/i;
-      let ok = false;
+      let ok = false, consentClicked = false;
       // 14 x 3s (was 10): Ashby's "We've received your application" arrived
       // after the 30s window on two jobs that were then filed unconfirmed and
       // retried - one of them may now hold a duplicate application (09-24).
@@ -2565,6 +2743,18 @@ for (const j of queue) {
             ok = true; rec.confirm = 'url-noctx'; rec.confirmUrl = u.slice(0, 120); break;
           }
           continue;   // transient - keep watching, do NOT abandon the check
+        }
+        // SmartRecruiters opens a "Preliminary questions / privacy notice"
+        // step AFTER Submit Application, with its own Back/Submit pair. Nothing
+        // clicked it, so a fully filled Arista form sat there unconfirmed
+        // (2026-09-25). Accept it once; it only asserts the notice was read.
+        if (!consentClicked && /declare that you have read|preliminary questions/i.test(st.txt)) {
+          const cbtn = tab.locator('button:visible', { hasText: /^\s*(submit|accept|i agree|agree|confirm)\s*$/i }).last();
+          if (await cbtn.count().catch(() => 0)) {
+            consentClicked = true;
+            rec.consentStep = await cbtn.click({ timeout: 5000 }).then(() => 'clicked').catch(e => String(e.message).slice(0, 50));
+            continue;
+          }
         }
         const hit = st.txt.match(CONFIRM_RE);
         if (hit) { ok = true; rec.confirm = 'text'; rec.confirmText = hit[0].slice(0, 60); break; }

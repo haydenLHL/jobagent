@@ -1468,3 +1468,14 @@ but the country field stays empty and Cisco stays blocked.
 - **restart.sh closes every tab except /jobs/recommend**, including the tabs
   of a non-shard worker (retry queue). Its current job ends err:* (not an
   attempt), so this costs little.
+
+## 2026-09-25 (in-order run, +24 on the Applied counter)
+
+- `inorder.mjs` is the single-pass driver: per job, apply3 then (if deferred) offsite3 `ONLY=<id>`, never concurrent. Resumable from the ledgers.
+- JobRight extension Autofill was clicked once by an instant `count()` on the landing page. It injects late and starts filling 4-8s after the click. Now `extAutofill()` polls, clicks once per page, waits for growth. `extAF` in the record shows before/after.
+- Ashby "Autofill from resume" box: uploading to it re-parses and CLEARS the real Resume field. Never feed it.
+- `fuzzyOpt(opts, 'LinkedIn')` on a list with no LinkedIn returns some other option; the source "correction" then overwrote our Phenom parent answer every pass. Guard any fuzzy override with a check that the match is really what you wanted.
+- Career pages (Phenom) with a talent-community form plus an APPLY link to a real ATS host: go to the href. Filter `mailto:` links (the share link contains the ATS host).
+- `button[type=submit]` fallback picked Phenom's "Next Step" as the final submit; nav labels are never submit.
+- Captcha false positives: `.g-recaptcha` ON a button (ADP) is invisible, and a Turnstile with its token already set has passed. SmartRecruiters "Verification Required / slide right" is a real bot wall: skip.
+- Wait loops: `ps | grep "[n]ode offsite3.mjs"` matches the waiting shell's own command line. Use `pgrep -f "^/full/path/node offsite3.mjs"`.

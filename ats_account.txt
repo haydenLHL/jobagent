@@ -13,3 +13,6 @@ apply.careers.microsoft.com
 # from). Verified live on careers-daytonfreight.icims.com 2026-09-18. Required
 # login => out of scope by user policy.
 icims.com
+ycombinator.com/companies   # YC Work at a Startup: Apply needs a YC account (2026-09-25)
+cg.sandia.gov   # Sandia PeopleSoft Candidate Gateway: account required (2026-09-25)
+workforcenow.adp.com   # ADP WFN: one-time verification code to email/phone before apply (2026-09-25)
