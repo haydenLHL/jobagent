@@ -1,5 +1,5 @@
 import { chromium } from 'playwright-core';
-const BANK = { firstName:'Liyu', lastName:'Xiao', email:'liyuxiao2006@gmail.com', phone:'647-894-2609' };
+import { BANK } from './profile.mjs';
 function bankValue(lab){
   const l=lab.toLowerCase();
   if(/full name|your name|^name$/.test(l))return null;

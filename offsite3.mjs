@@ -11,6 +11,7 @@ import { extractForm, snapshot, unresolved as unresolvedFields } from './formir.
 import { resolve } from './resolve.mjs';
 import { askLLM, norm as lnorm } from './llm.mjs';
 import { cleanTitle } from './title.mjs';
+import { FACTS, BANK, EDU_START_YEAR, DEGREE_OPTION, doc as docPath } from './profile.mjs';
 
 // A dialog (alert/confirm/beforeunload) firing on an ATS page can throw from
 // inside playwright-core's own internal event listener (DialogManager), on a
@@ -40,10 +41,9 @@ const SUBMIT = process.env.SUBMIT === '1';
 const LIMIT = Number(process.env.LIMIT || 9999);
 const LEDGER = 'offsite3.jsonl';
 const GAPS = 'gaps.jsonl';
-const HOME = process.env.HOME;
+
 const SHADOW = process.env.SHADOW !== '0';   // resolver rewrite: observe-only, default on
 const SHADOW_LOG = 'shadow.jsonl';
-const FACTS = fs.existsSync('answers.json') ? JSON.parse(fs.readFileSync('answers.json', 'utf8')) : null;
 if (SHADOW && !FACTS) console.log('(shadow mode: answers.json not found, skipping)');
 const normShadow = t => (t || '').toLowerCase().replace(/[*✱＊]/g, '').replace(/\s+/g, ' ').trim();
 
@@ -133,24 +133,7 @@ const ATS_ACCOUNT = fs.existsSync('ats_account.txt')
   : [];
 const needsAccount = u => ATS_ACCOUNT.some(h => String(u || '').toLowerCase().includes(h));
 
-const BANK = {
-  firstName: 'Liyu', lastName: 'Xiao', fullName: 'Liyu Xiao',
-  email: 'liyuxiao2006@gmail.com', phone: '647-894-2609',
-  linkedin: 'https://www.linkedin.com/in/liyu-xiao-593176206/',
-  github: 'https://github.com/liyuxiao2', website: 'https://liyuxiao.ca/',
-  school: 'McMaster University', degree: "Bachelor's Degree", major: 'Computer Science',
-  gpa: '3.8',
-  employer: 'Wealthsimple', jobTitle: 'Software Engineering Intern',
-  empStart: '2026-01', empEnd: '2026-08',
-  jobDuties: 'Built a hold-management system in Kotlin with a GraphQL mutation and DAO layer; offloaded logging to an Avro/Kafka/S3/Snowflake pipeline.',
-  salary: '90000', start: '2027-01-04', city: 'Toronto', state: 'Ontario', country: 'Canada',
-  address1: '61 Frederick Stamm Cres', postal: 'L6C 0X3',
-  salaryHourly: '43',
-  uniStart: '09/2024',
-  gradDate: '2028-04-30', gradMonthYear: '04/2028', gradYear: '2028',
-  locPref: 'Open to any of your US office locations; willing to relocate.',
-  location: 'Toronto, ON, Canada',
-};
+// BANK (name, contact, school, dates...) comes from answers.json via profile.mjs.
 function bankValue(l) {
   l = l.toLowerCase();
   if (/full name|your name|legal name|^name$/.test(l)) return BANK.fullName;
@@ -300,7 +283,6 @@ const learnedFreeText = (q, v) => {
   if (bare && /^(what|which|how|when|where|who|why)\b/i.test(head)) return null;
   return (/\?/.test(q) || !bare) ? v : null;
 };
-const EDU_START_YEAR = 2024;   // answers.json education[0].start_year
 // Audit trail: every multiple-choice answer infer() picks is recorded on the
 // job's ledger record (rec.answers), so a wrong claim is visible after the
 // fact. Two wrong-data bugs (fuzzy "AR" for Ontario, "Yes- I'm in SF") were
@@ -387,7 +369,7 @@ function infer0(q, opts) {
     const CLASS_OPT = /freshman|sophomore|junior|senior|graduate student/i;
     if (opts.length && opts.filter(o => CLASS_OPT.test(o)).length >= 2) {
       const ym = String(q).match(/\b(20\d{2})\b/);
-      if (ym) {
+      if (ym && EDU_START_YEAR) {
         const nth = Number(ym[1]) - EDU_START_YEAR + 1;
         const want = nth <= 1 ? "Freshman" : nth === 2 ? "Sophomore" : nth === 3 ? "Junior" : nth === 4 ? "Senior" : "Graduate Student";
         const hit = fuzzyOpt(opts, want);
@@ -423,11 +405,13 @@ function infer0(q, opts) {
   // "Bachelor of Science", "Master of Science", ...) never fuzzy-matches the
   // generic BANK.degree "Bachelor's Degree", so it gapped with the answer in
   // hand (Freddie Mac: navErrs said "Select degree"). answers.json has a
-  // B.A.Sc. in Computer Science, so prefer a Bachelor-of-Science option, then
-  // any bachelor-level one. Never pick a Master/Doctorate we do not hold.
+  // education[0].degree_option_match names the TRUE specific degree (e.g.
+  // Commerce / Business Administration); prefer that, else a generic
+  // "Bachelor's" option. Never pick a different named bachelor (a B.Sc. is a
+  // false claim for a B.Com.) or a Master/Doctorate we do not hold.
   if (opts.length >= 2 && opts.filter(o => /^\s*(bachelor|master|associate|doctor)/i.test(o)).length >= 2) {
-    const bs = opts.find(o => /^\s*bachelor\s+of\s+science/i.test(o))
-            || opts.find(o => /^\s*bachelor/i.test(o));
+    const bs = (DEGREE_OPTION && opts.find(o => /^\s*bachelor/i.test(o) && DEGREE_OPTION.test(o)))
+            || opts.find(o => /^\s*bachelor'?s?(\s+degree)?\s*(\(.*\))?\s*$/i.test(o));
     if (bs) return bs;
   }
   // "How did you hear about us?" is one of the most common required questions
@@ -1465,7 +1449,7 @@ async function fillFiles(pg) {
     const isTranscript = /transcript|academic record/i.test(lab);
     const isResume = !lab.trim() || /r[e\u00e9]sum[e\u00e9]|\bcv\b|curriculum vitae/i.test(lab);
     if (!isTranscript && !isResume) { FILE_LOG.push({ lab: lab.slice(0, 40), skipped: 'not-a-doc-we-have' }); continue; }
-    const path = `${HOME}/.jobagent/${isTranscript ? 'transcript.pdf' : 'resume.pdf'}`;
+    const path = docPath(isTranscript ? 'transcript.pdf' : 'resume.pdf');
     const err = await f.setInputFiles(path, { timeout: 12000 }).then(() => null).catch(e => String(e.message).slice(0, 70));
     const after = await f.evaluate(e => (e.files ? e.files.length : 0)).catch(() => 0);
     FILE_LOG.push({ lab: lab.slice(0, 40), err, after });
@@ -1667,7 +1651,7 @@ async function repairFromErrors(pg) {
       for (const f of await pg.locator('input[type=file]').all().catch(() => [])) {
         const lab = await f.evaluate(e => { let t = '', p = e.parentElement, h = 0; while (p && h++ < 4 && !t) { const s = (p.innerText || '').trim(); if (s.length > 3 && s.length < 200) t = s; p = p.parentElement; } return t; }).catch(() => '');
         if (/^autofill from/i.test(lab) || !new RegExp(doc === 'resume.pdf' ? 'r[eé]sum[eé]|\\bcv\\b' : 'transcript|academic', 'i').test(lab)) continue;
-        const err = await f.setInputFiles(`${HOME}/.jobagent/${doc}`, { timeout: 12000 }).then(() => null).catch(e => String(e.message).slice(0, 60));
+        const err = await f.setInputFiles(docPath(doc), { timeout: 12000 }).then(() => null).catch(e => String(e.message).slice(0, 60));
         FILE_LOG.push({ lab: `repair:${lab.slice(0, 30)}`, err });
         if (!err) { fixed++; await pg.waitForTimeout(2500); }
         break;

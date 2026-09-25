@@ -39,7 +39,10 @@ const nullKey = (k, facts) => {
 const CHILD_ENV = Object.fromEntries(Object.entries(process.env)
   .filter(([k]) => k !== 'ANTHROPIC_API_KEY' && !k.startsWith('CLAUDE_CODE_')));
 const run = (args, stdin, ms) => new Promise(res => {
-  const ch = execFile('claude', args, { maxBuffer: 8 << 20, timeout: ms, env: CHILD_ENV }, (err, so) => res(err && !so ? null : so));
+  // Windows: set CLAUDE_BIN to claude.exe from the native installer. An npm
+  // shim (claude.cmd) cannot be launched without a shell, and a shell would
+  // mangle the multi-line system prompt.
+  const ch = execFile(process.env.CLAUDE_BIN || 'claude', args, { maxBuffer: 8 << 20, timeout: ms, env: CHILD_ENV }, (err, so) => res(err && !so ? null : so));
   if (stdin) { ch.stdin.write(stdin); ch.stdin.end(); }
 });
 
@@ -52,7 +55,7 @@ RULES, in priority order:
 3a. But distinguish a CREDENTIAL from a PREFERENCE. A preference question (start date, which term, which role/track/team, which office, how much travel, remote vs onsite, how did you hear about us) has no true-or-false answer: pick the closest reasonable option from FACTS and the job title. Answering null on a preference question is a mistake - it blocks the whole application over something that was never a factual claim. Reserve null for questions where a wrong answer would be a false statement about the candidate.
 3b. A question whose exact expected value is absent from the options but which is a preference (e.g. FACTS says a 2027 start and the form offers only 2026 months) is still a preference: follow FACTS.start_date_policy / FACTS.role_preference rather than answering null.
 3c. HARD RULE, no exceptions: a start-date / earliest-availability / which-term / which-role / which-office / how-did-you-hear-about-us question that has OPTIONS must never be answered null. Pick the best option per FACTS.start_date_policy and FACTS.role_preference. Answering null there is the single most costly mistake you can make, because it blocks an otherwise complete application over a negotiable preference.
-4. Work authorization, sponsorship and citizenship: use the FACTS verbatim; they are deliberate. The candidate is a Canadian citizen, NOT authorized to work in the US, and DOES require sponsorship. Watch for inverted phrasing - answer the question that was actually asked.
+4. Work authorization, sponsorship and citizenship: use the FACTS verbatim; they are deliberate. FACTS.work_authorization states, per country, whether the candidate is authorized to work there and whether they require sponsorship. Watch for inverted phrasing - answer the question that was actually asked.
 5. EEO / self-identification / veteran / disability / gender / race: always pick the option that declines to answer. If none exists, answer null.
 5a. Language fluency: FACTS.languages is authoritative for the languages it lists. For a language NOT listed there, answer null - never assert that the candidate does or does not speak it.
 5b. School / degree / major pickers sometimes have a machine-generated label like "cards[uuid][field0]" and a very long option list that has been TRUNCATED before reaching you. If the options look like a list of universities, degrees or majors, answer with FACTS.education[0].school / .degree / .major verbatim even when that exact string is not among the options you can see - the caller matches it against the full list.

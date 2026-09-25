@@ -17,6 +17,7 @@ import { chromium } from 'playwright-core';
 import fs from 'fs';
 import { askLLM, norm as lnorm } from './llm.mjs';
 import { cleanTitle } from './title.mjs';
+import { FACTS, EDU_START_YEAR, doc as docPath } from './profile.mjs';
 
 const SUBMIT = process.env.SUBMIT === '1';
 const LIMIT = Number(process.env.LIMIT || 9999);
@@ -49,7 +50,6 @@ for (const r of priorRecs) {
   else if (!/^err:|^scan-failed$|^READY$/.test(String(r.status))) attemptCount.set(r.id, (attemptCount.get(r.id) || 0) + 1);
 }
 const done = { has: id => terminalIds.has(id) || (attemptCount.get(id) || 0) >= MAX_ATTEMPTS };
-const FACTS = fs.existsSync('answers.json') ? JSON.parse(fs.readFileSync('answers.json', 'utf8')) : null;
 const LLM_ON = process.env.LLM !== '0';
 const LLM_ANS = new Map();
 
@@ -89,7 +89,6 @@ const learnedFreeText = (q, v) => {
   if (bare && /^(what|which|how|when|where|who|why)\b/i.test(head)) return null;
   return (/\?/.test(q) || !bare) ? v : null;
 };
-const EDU_START_YEAR = 2024;   // answers.json education[0].start_year
 function infer(q, opts) {
   const find = re => opts.find(o => re.test(o));
   const llm = LLM_ANS.get(lnorm(q));
@@ -132,7 +131,7 @@ function infer(q, opts) {
     const CLASS_OPT = /freshman|sophomore|junior|senior|graduate student/i;
     if (opts.length && opts.filter(o => CLASS_OPT.test(o)).length >= 2) {
       const ym = String(q).match(/\b(20\d{2})\b/);
-      if (ym) {
+      if (ym && EDU_START_YEAR) {
         const nth = Number(ym[1]) - EDU_START_YEAR + 1;
         const want = nth <= 1 ? "Freshman" : nth === 2 ? "Sophomore" : nth === 3 ? "Junior" : nth === 4 ? "Senior" : "Graduate Student";
         const hit = fuzzyOpt(opts, want);
@@ -435,7 +434,7 @@ for (const j of jobs) {
             unresolvedDocs.push({ q: String(need).slice(0, 140), options: [] });
             continue;
           }
-          await f.setInputFiles(`${process.env.HOME}/.jobagent/${/transcript|academic record/i.test(need) ? 'transcript.pdf' : 'resume.pdf'}`, { timeout: 12000 }).catch(() => {});
+          await f.setInputFiles(docPath(/transcript|academic record/i.test(need) ? 'transcript.pdf' : 'resume.pdf'), { timeout: 12000 }).catch(() => {});
           await p.waitForTimeout(1500);
         }
         rec.phase = 'files';
