@@ -41,6 +41,13 @@ Step 'Checking Claude Code (answers unusual form questions)'
 # and an npm install only exposes claude.cmd, which can't be run without a
 # shell - so look in the known places and prefer the real program.
 $npmCli = "$env:APPDATA\npm\node_modules\@anthropic-ai\claude-code\cli.js"
+# npm's own launcher names the real target, whatever the package layout is.
+$shimTarget = $null
+$shim = "$env:APPDATA\npm\claude.cmd"
+if (Test-Path $shim) {
+  $m = [regex]::Match((Get-Content $shim -Raw), '"(%~?dp0%?\\node_modules\\[^"]+\.(exe|js|mjs|cjs))"')
+  if ($m.Success) { $shimTarget = $m.Groups[1].Value -replace '^%~?dp0%?', "$env:APPDATA\npm" }
+}
 $cands = @(
   "$env:USERPROFILE\.local\bin\claude.exe",
   "$env:LOCALAPPDATA\Programs\claude\claude.exe",
@@ -48,6 +55,7 @@ $cands = @(
   (Get-Command claude.exe -ErrorAction SilentlyContinue).Source,
   # npm package: newer versions download a native claude.exe during install
   (Get-ChildItem "$env:APPDATA\npm\node_modules\@anthropic-ai\claude-code" -Recurse -Filter claude.exe -ErrorAction SilentlyContinue | Select-Object -First 1).FullName,
+  $shimTarget,
   $npmCli
 ) | Where-Object { $_ -and (Test-Path $_) }
 if ($cands) { $env:CLAUDE_BIN = @($cands)[0]; Write-Host "Using Claude Code at $env:CLAUDE_BIN" }
