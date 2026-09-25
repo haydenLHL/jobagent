@@ -76,5 +76,14 @@ $env:QUEUE_FILE = 'jr_jobs_target.json'
 if ($Submit) { $env:SUBMIT = '1'; Step 'Applying - SUBMITTING for real (leave Opera alone)' }
 else { Remove-Item Env:SUBMIT -ErrorAction SilentlyContinue; Step 'Practice run - filling forms, NOT submitting (leave Opera alone)' }
 node apply3.mjs 2>&1 | Tee-Object -FilePath apply3.log
-Step "Done. Log saved to apply3.log"
+
+# Pass 2: jobs without EASY APPLY, applied to on the company's own site.
+# Never at the same time as pass 1 - they share the one Opera window.
+Step 'Building the list of jobs to apply to on company websites'
+node build_offsite.mjs
+$env:QUEUE_FILE = 'offsite_batch.json'
+if ($Submit) { Remove-Item Env:LIMIT -ErrorAction SilentlyContinue; Step 'Company websites - SUBMITTING for real (this can take hours; leave Opera alone)' }
+else { $env:LIMIT = '5'; Step 'Company websites - practice on 5 jobs, NOT submitting (leave Opera alone)' }
+node offsite3.mjs 2>&1 | Tee-Object -FilePath offsite3.log
+Step "Done. Logs saved to apply3.log and offsite3.log"
 Read-Host 'Press Enter to close'
