@@ -2,7 +2,7 @@ import { chromium } from 'playwright-core';
 const J=[['6aa45803f7baf881567ce618','Lyft Fullstack'],['6aa480ce422289703bd66d84','Lyft Backend'],
          ['6aa43a20c1928370a285d204','Veeam Policy'],['6aa4d98782e82a31997baf9d','NewsBreak Nearby AI'],
          ['6aa204852f936e4a53daf36d','Epic Games Backend']];
-const b=await chromium.connectOverCDP('http://localhost:9222');
+const b=await chromium.connectOverCDP('http://127.0.0.1:9222');
 const c=b.contexts()[0]; const p=await c.newPage();
 for(const [id,name] of J){
   await p.goto(`https://jobright.ai/jobs/info/${id}`,{waitUntil:'domcontentloaded',timeout:25000}).catch(()=>{});

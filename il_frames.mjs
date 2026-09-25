@@ -1,5 +1,5 @@
 import { chromium } from 'playwright-core';
-const b=await chromium.connectOverCDP('http://localhost:9222');
+const b=await chromium.connectOverCDP('http://127.0.0.1:9222');
 const c=b.contexts()[0];
 const p=c.pages().find(x=>/intern-list/.test(x.url())) || await c.newPage();
 if(!/intern-list/.test(p.url())) await p.goto('https://www.intern-list.com/',{waitUntil:'domcontentloaded',timeout:35000});

@@ -1,5 +1,5 @@
 import { chromium } from 'playwright-core';
-const b=await chromium.connectOverCDP('http://localhost:9222');
+const b=await chromium.connectOverCDP('http://127.0.0.1:9222');
 const c=b.contexts()[0];
 const pop=c.pages().find(x=>/tesla\.com/.test(x.url()));
 if(!pop){ console.log('no tesla tab found'); await b.close(); process.exit(0); }

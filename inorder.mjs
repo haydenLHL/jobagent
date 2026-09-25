@@ -19,11 +19,11 @@ const last = (f, id) => rd(f).filter(r => r.id === id).pop();
 
 async function tidyTabs() {
   try {
-    const list = await (await fetch('http://localhost:9222/json/list')).json();
+    const list = await (await fetch('http://127.0.0.1:9222/json/list')).json();
     const pages = list.filter(t => t.type === 'page');
-    for (const t of pages) if (!/jobs\/recommend/.test(t.url)) await fetch(`http://localhost:9222/json/close/${t.id}`).catch(() => {});
+    for (const t of pages) if (!/jobs\/recommend/.test(t.url)) await fetch(`http://127.0.0.1:9222/json/close/${t.id}`).catch(() => {});
     // zero open tabs breaks connectOverCDP
-    await fetch('http://localhost:9222/json/new?about:blank', { method: 'PUT' }).catch(() => {});
+    await fetch('http://127.0.0.1:9222/json/new?about:blank', { method: 'PUT' }).catch(() => {});
   } catch {}
 }
 

@@ -2,7 +2,7 @@
 import { chromium } from 'playwright-core';
 import fs from 'fs';
 const CATS = (process.env.CATS || 'swe').split(',');
-const b = await chromium.connectOverCDP('http://localhost:9222');
+const b = await chromium.connectOverCDP('http://127.0.0.1:9222');
 const c = b.contexts()[0];
 const out = new Map();
 const p = await c.newPage();

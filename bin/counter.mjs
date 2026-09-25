@@ -1,4 +1,4 @@
-const list = await (await fetch('http://localhost:9222/json/list')).json();
+const list = await (await fetch('http://127.0.0.1:9222/json/list')).json();
 const tab = list.find(t => t.type === 'page' && t.url.includes('/jobs/recommend'));
 if (!tab) { console.log('NO_TAB'); process.exit(0); }
 const ws = new WebSocket(tab.webSocketDebuggerUrl);

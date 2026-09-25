@@ -1915,7 +1915,7 @@ let PHASE = 'init';
 let JOB_T0 = Date.now();
 const phase = p => { PHASE = p; if (process.env.DEBUG_TIME) console.error(`[phase] ${p} +${Math.round((Date.now() - JOB_T0) / 1000)}s`); };
 
-let b = await chromium.connectOverCDP('http://localhost:9222');
+let b = await chromium.connectOverCDP('http://127.0.0.1:9222');
 let c = b.contexts()[0];
 // Playwright's 30s DEFAULT timeout was the biggest single time sink on big
 // forms: locator.evaluate() on a stale nth-locator (the form re-rendered after
@@ -1951,7 +1951,7 @@ async function reconnect() {
   try { await b.close(); } catch {}
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      b = await chromium.connectOverCDP('http://localhost:9222');
+      b = await chromium.connectOverCDP('http://127.0.0.1:9222');
       c = b.contexts()[0]; c.setDefaultTimeout(DEFAULT_TO);
       armDialogHandler(c);
       await c.newPage().then(p => p.close());   // prove the fresh connection actually works

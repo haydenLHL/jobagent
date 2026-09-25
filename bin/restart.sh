@@ -11,8 +11,8 @@ sleep 3
 for p in $(ps -eo pid,command | grep "[n]ode offsite3.mjs" | grep -v ONLY= | awk '{print $1}'); do
   ps eww -p "$p" 2>/dev/null | grep -q "QUEUE_FILE=shard" && kill -9 "$p" 2>/dev/null || true
 done
-curl -s localhost:9222/json/list | "$HOME/.local/share/mise/shims/node" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",async()=>{for(const x of JSON.parse(s).filter(x=>x.type==="page")) if(!/jobs\/recommend/.test(x.url)) await fetch("http://localhost:9222/json/close/"+x.id).catch(()=>{});})' || true
-curl -s -X PUT "http://localhost:9222/json/new?about:blank" >/dev/null || true
+curl -s 127.0.0.1:9222/json/list | "$HOME/.local/share/mise/shims/node" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",async()=>{for(const x of JSON.parse(s).filter(x=>x.type==="page")) if(!/jobs\/recommend/.test(x.url)) await fetch("http://127.0.0.1:9222/json/close/"+x.id).catch(()=>{});})' || true
+curl -s -X PUT "http://127.0.0.1:9222/json/new?about:blank" >/dev/null || true
 export JOB_TIMEOUT=${JOB_TIMEOUT:-240000} STALL=${STALL:-660}
 nohup bash bin/watchdog.sh "$N" >> watchdog.log 2>&1 &
 sleep 6

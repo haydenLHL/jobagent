@@ -294,7 +294,7 @@ process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', msg);
   process.exit(1);
 });
-let b = await chromium.connectOverCDP('http://localhost:9222');
+let b = await chromium.connectOverCDP('http://127.0.0.1:9222');
 let c = b.contexts()[0];
 // Intercept dialogs ourselves so playwright-core never takes its throwing path.
 const armDialogHandler = ctx => ctx.on('page', pg => pg.on('dialog', d => d.dismiss().catch(() => {})));
@@ -309,7 +309,7 @@ async function reconnect() {
   try { await b.close(); } catch {}
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      b = await chromium.connectOverCDP('http://localhost:9222');
+      b = await chromium.connectOverCDP('http://127.0.0.1:9222');
       c = b.contexts()[0];
       armDialogHandler(c);
       await c.newPage().then(pg => pg.close());   // prove the fresh connection works

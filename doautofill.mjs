@@ -9,7 +9,7 @@ const count = f => f.evaluate(()=>{
   });
   return {filled,empty};
 });
-const b=await chromium.connectOverCDP('http://localhost:9222');
+const b=await chromium.connectOverCDP('http://127.0.0.1:9222');
 const c=b.contexts()[0];
 const t=c.pages().filter(x=>/ashbyhq/.test(x.url()))[0];
 await t.bringToFront();

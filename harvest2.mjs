@@ -1,6 +1,6 @@
 import { chromium } from 'playwright-core';
 import fs from 'fs';
-const b=await chromium.connectOverCDP('http://localhost:9222');
+const b=await chromium.connectOverCDP('http://127.0.0.1:9222');
 const c=b.contexts()[0]; const p=await c.newPage();
 try{
  await p.goto('https://jobright.ai/jobs/recommend',{waitUntil:'domcontentloaded',timeout:45000});

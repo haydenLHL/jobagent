@@ -6,7 +6,7 @@ const cnt=p=>p.evaluate(()=>{const m=document.querySelector('.ant-modal,[role=di
     if(ty==='checkbox'||ty==='radio'){if(x.checked)f++;return;}
     if(String(x.value||'').trim())f++;else{e++;}});
   return {f,e};});
-const b=await chromium.connectOverCDP('http://localhost:9222');
+const b=await chromium.connectOverCDP('http://127.0.0.1:9222');
 const c=b.contexts()[0];
 const p=c.pages().find(x=>/jobright\.ai\/jobs\/info/.test(x.url()));
 await p.bringToFront();

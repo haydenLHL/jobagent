@@ -1,5 +1,5 @@
 import { chromium } from 'playwright-core';
-const b=await chromium.connectOverCDP('http://localhost:9222');
+const b=await chromium.connectOverCDP('http://127.0.0.1:9222');
 const c=b.contexts()[0];
 const t=c.pages().find(x=>/indeed\.com/.test(x.url()));
 if(t){ await t.close(); console.log('closed indeed login tab'); } else console.log('no indeed tab found');

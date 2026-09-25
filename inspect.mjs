@@ -1,5 +1,5 @@
 import { chromium } from 'playwright-core';
-const b=await chromium.connectOverCDP('http://localhost:9222');
+const b=await chromium.connectOverCDP('http://127.0.0.1:9222');
 const c=b.contexts()[0];
 const t=c.pages().find(x=>/ashbyhq\.com/.test(x.url()));
 if(!t){ console.log('no ashby tab open. tabs:'); c.pages().forEach(x=>console.log('  ',x.url().slice(0,85))); await b.close(); process.exit(0); }

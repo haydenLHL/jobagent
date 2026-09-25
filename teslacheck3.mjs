@@ -1,5 +1,5 @@
 import { chromium } from 'playwright-core';
-const b=await chromium.connectOverCDP('http://localhost:9222');
+const b=await chromium.connectOverCDP('http://127.0.0.1:9222');
 const c=b.contexts()[0]; const p=await c.newPage();
 await p.goto('https://www.tesla.com/careers/search/job/283117?source=Indeed',{waitUntil:'domcontentloaded',timeout:25000});
 await p.waitForTimeout(3000);

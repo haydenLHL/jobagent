@@ -38,7 +38,7 @@ if ($claude) { $env:CLAUDE_BIN = $claude.Source } else { Write-Host 'Claude Code
 
 Step 'Opening Opera'
 & powershell -ExecutionPolicy Bypass -File bin\opera.ps1
-if ($LASTEXITCODE -ne 0) { Stop-With 'Could not start Opera. Close all Opera windows and try again.' }
+if ($LASTEXITCODE -ne 0) { Stop-With 'Could not connect to Opera (see the message above).' }
 if (-not (Test-Path jr_jobs.json)) {
   Write-Host "`nFIRST TIME ONLY: in the Opera window that just opened," -ForegroundColor Yellow
   Write-Host '  1. install the JobRight extension from the Chrome Web Store' -ForegroundColor Yellow

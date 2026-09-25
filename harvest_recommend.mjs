@@ -5,7 +5,7 @@
 import { chromium } from 'playwright-core';
 import fs from 'fs';
 const MAX_ROUNDS = Number(process.env.ROUNDS || 120);
-const b = await chromium.connectOverCDP('http://localhost:9222');
+const b = await chromium.connectOverCDP('http://127.0.0.1:9222');
 const c = b.contexts()[0];
 const out = new Map();
 const p = await c.newPage();

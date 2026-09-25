@@ -1,6 +1,6 @@
 import { chromium } from 'playwright-core';
 const IDS=['6aa45803f7baf881567ce618','6aa480ce422289703bd66d84','6aa43a20c1928370a285d204'];
-const b=await chromium.connectOverCDP('http://localhost:9222');
+const b=await chromium.connectOverCDP('http://127.0.0.1:9222');
 const c=b.contexts()[0]; const p=await c.newPage();
 for(const id of IDS){
   await p.goto(`https://jobright.ai/jobs/info/${id}`,{waitUntil:'domcontentloaded',timeout:30000}).catch(()=>{});

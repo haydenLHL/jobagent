@@ -1,5 +1,5 @@
 import { chromium } from 'playwright-core';
-const b = await chromium.connectOverCDP('http://localhost:9222');
+const b = await chromium.connectOverCDP('http://127.0.0.1:9222');
 const ctxs = b.contexts();
 console.log('contexts:', ctxs.length);
 for (const c of ctxs) {

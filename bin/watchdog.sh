@@ -18,10 +18,10 @@ alive() { local p; p=$(pid_of "$1"); [ -n "$p" ] && ps -p "$p" -o command= 2>/de
 start() {
   local k=$1
   # CDP must be up and have at least one tab, or connectOverCDP breaks.
-  curl -s --max-time 5 localhost:9222/json/version >/dev/null || { log "CDP down, starting chrome"; bash bin/chrome.sh >/dev/null 2>&1; sleep 5; }
+  curl -s --max-time 5 127.0.0.1:9222/json/version >/dev/null || { log "CDP down, starting chrome"; bash bin/chrome.sh >/dev/null 2>&1; sleep 5; }
   # Only when there is no tab at all (the handshake needs one); an unconditional
   # PUT left one extra about:blank per restart.
-  curl -s --max-time 5 localhost:9222/json/list | grep -q '"type": "page"' || curl -s -X PUT "http://localhost:9222/json/new?about:blank" >/dev/null 2>&1
+  curl -s --max-time 5 127.0.0.1:9222/json/list | grep -q '"type": "page"' || curl -s -X PUT "http://127.0.0.1:9222/json/new?about:blank" >/dev/null 2>&1
   echo "--- restart $(date) ---" >> "shard$k.log"
   QUEUE_FILE="shard$k.json" JOB_TIMEOUT=$JT SUBMIT=1 nohup "$NODE" offsite3.mjs >> "shard$k.log" 2>&1 &
   echo $! > "shard$k.pid"

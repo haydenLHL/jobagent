@@ -13,7 +13,7 @@ const classify=u=>{
   if(/workable/i.test(u)) return 'workable';
   return 'other';
 };
-const b=await chromium.connectOverCDP('http://localhost:9222');
+const b=await chromium.connectOverCDP('http://127.0.0.1:9222');
 const c=b.contexts()[0]; const p=await c.newPage();
 try{
  for(const id of IDS){
