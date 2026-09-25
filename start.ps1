@@ -15,7 +15,11 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
   $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
   if (-not (Get-Command node -ErrorAction SilentlyContinue)) { Stop-With 'Node.js installed. Close this window and run start.ps1 again.' }
 }
-if (-not (Test-Path node_modules)) { Step 'Installing packages'; npm install --silent }
+if (-not (Test-Path node_modules\playwright-core)) {
+  Step 'Installing packages'
+  npm install --registry=https://registry.npmjs.org
+  if (-not (Test-Path node_modules\playwright-core)) { Stop-With 'Package install failed (see the message above). Check your internet connection and run again.' }
+}
 
 Step 'Checking your files'
 $dl = Join-Path $env:USERPROFILE 'Downloads'
@@ -62,8 +66,10 @@ if (-not (Test-Path jr_jobs.json)) {
 
 Step 'Finding jobs on JobRight (a few minutes)'
 node harvest_recommend.mjs
+if (-not (Test-Path jr_jobs.json)) { Stop-With 'Could not collect jobs from JobRight (see the message above). Make sure you are logged in to jobright.ai in the agent''s Opera window.' }
 Step 'Keeping Canadian jobs only'
 node scope.mjs
+if (-not (Test-Path jr_jobs_target.json)) { Stop-With 'Could not filter the job list.' }
 
 $env:QUEUE_FILE = 'jr_jobs_target.json'
 if ($Submit) { $env:SUBMIT = '1'; Step 'Applying - SUBMITTING for real (leave Opera alone)' }
