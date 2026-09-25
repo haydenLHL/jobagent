@@ -42,7 +42,10 @@ const run = (args, stdin, ms) => new Promise(res => {
   // Windows: set CLAUDE_BIN to claude.exe from the native installer. An npm
   // shim (claude.cmd) cannot be launched without a shell, and a shell would
   // mangle the multi-line system prompt.
-  const ch = execFile(process.env.CLAUDE_BIN || 'claude', args, { maxBuffer: 8 << 20, timeout: ms, env: CHILD_ENV }, (err, so) => res(err && !so ? null : so));
+  // CLAUDE_BIN may also be the npm package's cli.js: run that with this node.
+  const bin = process.env.CLAUDE_BIN || 'claude';
+  const [cmd, pre] = /\.m?js$/i.test(bin) ? [process.execPath, [bin]] : [bin, []];
+  const ch = execFile(cmd, [...pre, ...args], { maxBuffer: 8 << 20, timeout: ms, env: CHILD_ENV }, (err, so) => res(err && !so ? null : so));
   if (stdin) { ch.stdin.write(stdin); ch.stdin.end(); }
 });
 

@@ -33,8 +33,22 @@ if (-not (Test-Path resume.pdf)) {
 Write-Host "Applying as $($me.first_name) $($me.last_name) with resume.pdf in $PSScriptRoot"
 
 Step 'Checking Claude Code (answers unusual form questions)'
-$claude = Get-Command claude -ErrorAction SilentlyContinue
-if ($claude) { $env:CLAUDE_BIN = $claude.Source } else { Write-Host 'Claude Code not found - unusual questions will be skipped, not guessed.' -ForegroundColor Yellow }
+# The native installer's folder is often not on PATH until Windows restarts,
+# and an npm install only exposes claude.cmd, which can't be run without a
+# shell - so look in the known places and prefer the real program.
+$npmCli = "$env:APPDATA\npm\node_modules\@anthropic-ai\claude-code\cli.js"
+$cands = @(
+  "$env:USERPROFILE\.local\bin\claude.exe",
+  "$env:LOCALAPPDATA\Programs\claude\claude.exe",
+  "$env:LOCALAPPDATA\AnthropicClaude\claude.exe",
+  (Get-Command claude.exe -ErrorAction SilentlyContinue).Source,
+  $npmCli
+) | Where-Object { $_ -and (Test-Path $_) }
+if ($cands) { $env:CLAUDE_BIN = @($cands)[0]; Write-Host "Using Claude Code at $env:CLAUDE_BIN" }
+else {
+  Write-Host 'Claude Code (the command-line tool) was not found. Unusual questions will be skipped, not guessed.' -ForegroundColor Yellow
+  Write-Host 'Note: the Claude desktop app is not the same thing. To install Claude Code, run in PowerShell:  irm https://claude.ai/install.ps1 | iex' -ForegroundColor Yellow
+}
 
 Step 'Opening Opera'
 & powershell -ExecutionPolicy Bypass -File bin\opera.ps1
