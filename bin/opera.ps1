@@ -18,8 +18,11 @@ if (Get-Process opera -ErrorAction SilentlyContinue) {
   Write-Host 'Opera is already running. It must be fully closed so the agent can open its own copy.' -ForegroundColor Yellow
   $a = Read-Host 'Close all Opera windows now? Unsaved tabs are restored next time you open Opera. (y/n)'
   if ($a -ne 'y') { Write-Error 'Close Opera (also check the system tray by the clock), then run again.'; exit 1 }
-  Get-Process opera | Stop-Process -Force
-  Start-Sleep -Seconds 3
+  # Ask politely first so Opera saves its cookies and session; force only stragglers.
+  Get-Process opera | ForEach-Object { $_.CloseMainWindow() | Out-Null }
+  for ($i = 0; $i -lt 10 -and (Get-Process opera -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Seconds 1 }
+  Get-Process opera -ErrorAction SilentlyContinue | Stop-Process -Force
+  Start-Sleep -Seconds 2
 }
 
 # Prefer the real browser binary inside the versioned folder: the top-level
@@ -38,7 +41,15 @@ if (-not $exe) {
 if (-not $exe -or -not (Test-Path $exe)) { Write-Error "Opera not found. Set OPERA_EXE to the full path of opera.exe."; exit 1 }
 Write-Host "Starting $exe"
 
-$profileDir = Join-Path (Get-Location) 'opera-profile'
+# Keep the profile (JobRight extension + login) OUTSIDE the repo folder, so
+# downloading a fresh copy of the repo does not start from a logged-out profile.
+$profileDir = Join-Path $env:LOCALAPPDATA 'jobagent\opera-profile'
+$old = Join-Path (Get-Location) 'opera-profile'
+if (-not (Test-Path $profileDir) -and (Test-Path $old)) {
+  Write-Host 'Moving the agent Opera profile to a permanent location...'
+  New-Item -ItemType Directory -Force (Split-Path $profileDir) | Out-Null
+  Copy-Item $old $profileDir -Recurse
+}
 Start-Process -FilePath $exe -ArgumentList @(
   '--remote-debugging-port=9222',
   "--user-data-dir=`"$profileDir`"",

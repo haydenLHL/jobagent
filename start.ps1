@@ -57,11 +57,12 @@ else {
 Step 'Opening Opera'
 & powershell -ExecutionPolicy Bypass -File bin\opera.ps1
 if ($LASTEXITCODE -ne 0) { Stop-With 'Could not connect to Opera (see the message above).' }
-if (-not (Test-Path jr_jobs.json)) {
+if (-not (Test-Path (Join-Path $env:LOCALAPPDATA 'jobagent\opera-profile\.jobright-ok'))) {
   Write-Host "`nFIRST TIME ONLY: in the Opera window that just opened," -ForegroundColor Yellow
   Write-Host '  1. install the JobRight extension from the Chrome Web Store' -ForegroundColor Yellow
   Write-Host '  2. go to jobright.ai and log in' -ForegroundColor Yellow
   Read-Host 'Press Enter here when you are logged in'
+  New-Item -ItemType File -Force (Join-Path $env:LOCALAPPDATA 'jobagent\opera-profile\.jobright-ok') | Out-Null
 }
 
 Step 'Finding jobs on JobRight (a few minutes)'
