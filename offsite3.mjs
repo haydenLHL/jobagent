@@ -2080,6 +2080,14 @@ for (const j of queue) {
         rec.sameTab = 1; tab = p;
       }
       }
+      // The autofill click opened nothing (the JobRight extension missing or
+      // not working in this browser, e.g. Opera GX). The job's own applyLink
+      // reaches the same ATS form, and our bank fill does the extension's work.
+      if (!tab && applyLink) {
+        rec.via = 'applylink-fallback';
+        tab = await c.newPage(); OWN.add(tab);
+        await tab.goto(applyLink, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+      }
       if (!tab) { rec.status = 'no-ats-tab'; return; }
       OWN.add(tab);
       await tab.waitForLoadState('domcontentloaded').catch(() => {});
